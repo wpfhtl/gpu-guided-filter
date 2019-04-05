@@ -1,0 +1,35 @@
+##################### GUIDED FILTERING -- TODO ######################
+
+Benchmark:
+ Guided Filter:
+    - [] CPU single thread
+    - [] CPU multi thread/vectorized
+    - [] GPU (Open CL/Cuda ?)
+    - [] Matlab?
+    - [] OpenCV?
+
+ Bilateral Filter:
+    - [] CPU single thread
+    - [] CPU multi thread/vectorized
+    - [] GPU (Open CL/Cuda ?)
+    - [] Matlab?
+    - [] OpenCV?
+
+Gaussian Blur:
+    ...
+
+Priority:
+
+T0
+    CPU        -- Antoine
+    CPU PARA
+    GPU        -- Hugo & Tim
+
+T1
+    MATLAB
+    OPENCV
+    GPU2?
+
+T2...
+
+#####################################################################
