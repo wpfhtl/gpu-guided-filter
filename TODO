@@ -4,14 +4,14 @@ Benchmark:
  Guided Filter:
     - [] CPU single thread
     - [] CPU multi thread/vectorized
-    - [] GPU (Open CL/Cuda ?)
-    - [] Matlab?
+    - [] GPU (Open CL/Cuda)
+    - [] Matlab? (no implementation)
     - [] OpenCV?
 
- Bilateral Filter:
+ Bilateral Filters: (relative to guided filter, not the main subject)
     - [] CPU single thread
     - [] CPU multi thread/vectorized
-    - [] GPU (Open CL/Cuda ?)
+    - [] GPU (Open CL/Cuda)
     - [] Matlab?
     - [] OpenCV?
 

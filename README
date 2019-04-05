@@ -1,0 +1,6 @@
+benchmark:
+  1 graphique different par taille d'image (1MB, ...)
+  axes:
+    x : taille du filtre / element structurant
+    y : temps
+    une courbe par implem
