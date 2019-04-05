@@ -18,6 +18,9 @@ Benchmark:
 Gaussian Blur:
     ...
 
+see also:
+"collaborative framework": collective VS scalar (https://nvlabs.github.io/cub)
+
 Priority:
 
 T0
