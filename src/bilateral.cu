@@ -110,19 +110,19 @@ void bilateralFilterCuda(const float4 * const h_input,
 }
 
 void processUsingCuda(std::string input_file, std::string output_file) {
-	cv::Mat input = cv::imread(input_file,IMREAD_UNCHANGED);
+	cv::Mat input = cv::imread(input_file);
 	if(input.empty())
 	{
 		std::cout<<"Image Not Found: "<< input_file << std::endl;
 		return;
 	}
  
-	Mat inputRGBA;
+    cv::Mat inputRGBA;
 	cvtColor(input, inputRGBA, CV_BGR2RGBA, 4);
 	inputRGBA.convertTo(inputRGBA, CV_32FC4);
 	inputRGBA /= 255;
  
-	Mat output (input.size(), inputRGBA.type());
+    cv::Mat output (input.size(), inputRGBA.type());
  
 	const float euclidean_delta = 3.0f;
 	const int filter_radius = 3;
@@ -137,4 +137,13 @@ void processUsingCuda(std::string input_file, std::string output_file) {
 	cvtColor(output, output, CV_RGBA2BGR, 3);
  
 	imwrite(output_file, output);
+}
+
+int main(int argc, char *argv[]) {
+    if (argc < 2) {
+        std::cout << "Choose image" << std::endl;
+        return 1;
+    }
+    processUsingCuda("../data/cat.png", "out.png");
+    return 0;
 }
