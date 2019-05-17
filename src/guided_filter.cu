@@ -62,10 +62,12 @@ __global__ void guidedFilterCudaKernel(float* d_input,
         float eps)
 {
     box_filter(d_input, mean_I, width, height);
+    __syncthreads();
     box_filter(d_input, mean_p, width, height);
+    __syncthreads();
     box_filter(d_input, mean_Ip, width, height);
+    __syncthreads();
     box_filter(d_input, mean_II, width, height);
-
     __syncthreads();
 
     compute_cov_var(mean_Ip, mean_II, mean_I, mean_p, var_I, cov_Ip, width, height);

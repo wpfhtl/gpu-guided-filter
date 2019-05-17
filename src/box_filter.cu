@@ -4,15 +4,15 @@
 
 __device__ void box_filter(float *in, float *out, int width, int height)
 {
-    const int x = blockIdx.x * TILE_W + threadIdx.x - RADIUS;
-    const int y = blockIdx.y * TILE_H + threadIdx.y - RADIUS;
+    __shared__ float shMem[BLOCK_W][BLOCK_H];
+    int x = blockIdx.x * TILE_W + threadIdx.x - RADIUS;
+    int y = blockIdx.y * TILE_H + threadIdx.y - RADIUS;
+    x = max(0, x);
+    x = min(x, width-1);
+    y = max(y, 0);
+    y = min(y, height-1);
     const int d = y * width + x;
 
-    __shared__ float shMem[BLOCK_W][BLOCK_H];
-    if(x < 0 || y < 0 || x >= width || y >= height) {
-        shMem[threadIdx.x][threadIdx.y] = 0;
-        return; 
-    }
     shMem[threadIdx.x][threadIdx.y] = in[d];
 
     __syncthreads();
@@ -22,10 +22,11 @@ __device__ void box_filter(float *in, float *out, int width, int height)
         float sum = 0;
         for(int dy = -RADIUS; dy <= RADIUS; dy++) {
             for(int dx = -RADIUS; dx <= RADIUS; dx++) {
-                float i = shMem[threadIdx.x+dx][threadIdx.y+dy];
+                float i = shMem[threadIdx.x + dx][threadIdx.y + dy];
                 sum += i;
             }
         }
+        printf("val: %f, sum: %f, size: %d\n", sum / SIZE, sum, SIZE);
         out[d] = sum / SIZE;
     }
 }
