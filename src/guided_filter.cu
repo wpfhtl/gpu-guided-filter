@@ -1,21 +1,21 @@
 #include <cuda.h>
 #include <opencv2/opencv.hpp>
 #include <iostream>
-#include <stdio.h>
 
 #include "box_filter.h"
+#include "math_kernels.h"
 
 __device__ void compute_cov_var(float *mean_Ip, float *mean_II, float *mean_I,
         float *mean_p, float *var_I, float *cov_Ip,
         int width, int height)
 {
-    int x = blockDim.x * blockIdx.x + threadIdx.x;
-    int y = blockDim.y * blockIdx.y + threadIdx.y;
-    if (x < width && y < height) {
+    int x = blockIdx.x * TILE_W + threadIdx.x - RADIUS;
+    int y = blockIdx.y * TILE_H + threadIdx.y - RADIUS;
+    if (x >= 0 && y >= 0 && x < width && y < height) {
         int idx = y * width + x; 
         float m_I = mean_I[idx];
-        var_I[idx] = mean_Ip[idx] - m_I * m_I;
-        cov_Ip[idx] = mean_II[idx] - m_I * mean_p[idx];
+        var_I[idx] = mean_II[idx] - m_I * m_I;
+        cov_Ip[idx] = mean_Ip[idx] - m_I * mean_p[idx];
     }
 }
 
@@ -23,9 +23,9 @@ __device__ void compute_ab(float *var_I, float *cov_Ip, float *mean_I,
         float *mean_p, float *a, float *b, float eps,
         int width, int height)
 {
-    int x = blockDim.x * blockIdx.x + threadIdx.x;
-    int y = blockDim.y * blockIdx.y + threadIdx.y;
-    if (x < width && y < height) {
+    int x = blockIdx.x * TILE_W + threadIdx.x - RADIUS;
+    int y = blockIdx.y * TILE_H + threadIdx.y - RADIUS;
+    if (x >= 0 && y >= 0 && x < width && y < height) {
         int idx = y * width + x; 
         float a_ = cov_Ip[idx] / (var_I[idx] + eps);
         a[idx] = a_;
@@ -33,15 +33,15 @@ __device__ void compute_ab(float *var_I, float *cov_Ip, float *mean_I,
     }
 }
 
-__device__ void compute_q(float *p, float *mean_a, float *mean_b, float *q,
+__device__ void compute_q(float *in, float *mean_a, float *mean_b, float *q,
         int width, int height)
 {
-    int x = blockDim.x * blockIdx.x + threadIdx.x;
-    int y = blockDim.y * blockIdx.y + threadIdx.y;
-    if (x < width && y < height) {
+    int x = blockIdx.x * TILE_W + threadIdx.x - RADIUS;
+    int y = blockIdx.y * TILE_H + threadIdx.y - RADIUS;
+    if (x >= 0 && y >= 0 && x < width && y < height) {
         int idx = y * width + x; 
-        float p_ = p[idx];
-        q[idx] = mean_a[idx] * p_ + mean_b[idx];
+        float im_ = in[idx];
+        q[idx] = mean_a[idx] * im_ + mean_b[idx];
     }
 }
 
@@ -58,21 +58,29 @@ __global__ void guidedFilterCudaKernel(float* d_input,
         float *b,
         float *mean_a,
         float *mean_b,
+        float *tmp,
+        float *tmp2,
         int width, int height,
         float eps)
 {
+    mult(d_input, d_p, tmp, width, height);
+    mult(d_input, d_input, tmp2, width, height);
+
+    __syncthreads();
+    
     box_filter(d_input, mean_I, width, height);
-    __syncthreads();
-    box_filter(d_input, mean_p, width, height);
-    __syncthreads();
-    box_filter(d_input, mean_Ip, width, height);
-    __syncthreads();
-    box_filter(d_input, mean_II, width, height);
+    box_filter(d_p, mean_p, width, height);
+    box_filter(tmp, mean_Ip, width, height);
+    box_filter(tmp2, mean_II, width, height);
+    
     __syncthreads();
 
     compute_cov_var(mean_Ip, mean_II, mean_I, mean_p, var_I, cov_Ip, width, height);
+
     __syncthreads();
+    
     compute_ab(var_I, cov_Ip, mean_I, mean_p, a, b, eps, width, height);
+    
     __syncthreads();
 
     box_filter(a, mean_a, width, height);
@@ -101,9 +109,11 @@ void guidedFilterCuda(float *h_input,
         int width, int height,
         float eps)
 {
+       
     const int n = width * height * sizeof(float);
+
     float *d_input, *d_p, *d_output, *mean_I, *mean_p,* mean_Ip,
-          *mean_II, *var_I, *cov_Ip, *a, *b, *mean_a, *mean_b;
+          *mean_II, *var_I, *cov_Ip, *a, *b, *mean_a, *mean_b, *tmp, *tmp2;
     checkCudaErrors(cudaMalloc<float>(&d_input, n));
     checkCudaErrors(cudaMalloc<float>(&d_p, n));
     checkCudaErrors(cudaMalloc<float>(&d_output, n));
@@ -117,6 +127,8 @@ void guidedFilterCuda(float *h_input,
     checkCudaErrors(cudaMalloc<float>(&b, n));
     checkCudaErrors(cudaMalloc<float>(&mean_a, n));
     checkCudaErrors(cudaMalloc<float>(&mean_b, n));
+    checkCudaErrors(cudaMalloc<float>(&tmp, n));
+    checkCudaErrors(cudaMalloc<float>(&tmp2, n));
 
     checkCudaErrors(cudaMemcpy(d_input, h_input, n, cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(d_p, h_p, n, cudaMemcpyHostToDevice));
@@ -127,15 +139,17 @@ void guidedFilterCuda(float *h_input,
 
     const dim3 block(BLOCK_W, BLOCK_H);
     const dim3 grid(GRID_W, GRID_H);
+    //const dim3 grid(width/(block.x)+ block.x,height/(block.y)+block.y);
+    //const dim3 grid((width + block.x-1)/block.x, (height + block.y - 1)/block.y);
     printf("grid_w: %d\n", grid.x);
     printf("grid_h: %d\n", grid.y);
 
     printf("block_w: %d\n", block.x);
     printf("block_h: %d\n", block.y);
 
-    guidedFilterCudaKernel<<<grid,block>>>(d_input, d_p, d_output,
+    guidedFilterCudaKernel<<<grid, block>>>(d_input, d_p, d_output,
             mean_I, mean_p, mean_Ip, mean_II, var_I, cov_Ip, a, b,
-            mean_a , mean_b, width, height, eps);
+            mean_a , mean_b, tmp, tmp2, width, height, eps);
 
     cudaDeviceSynchronize();
 
@@ -154,6 +168,8 @@ void guidedFilterCuda(float *h_input,
     checkCudaErrors(cudaFree(b));
     checkCudaErrors(cudaFree(mean_a));
     checkCudaErrors(cudaFree(mean_b));
+    checkCudaErrors(cudaFree(tmp));
+    checkCudaErrors(cudaFree(tmp2));
 }
 
 void processUsingCuda(std::string input_file, std::string output_file) {
@@ -165,7 +181,7 @@ void processUsingCuda(std::string input_file, std::string output_file) {
 
     cv::Mat inputGRAY;
     cvtColor(input, inputGRAY, CV_BGR2GRAY, 1);
-    inputGRAY.convertTo(inputGRAY, CV_64F);
+    inputGRAY.convertTo(inputGRAY, CV_32F);
     inputGRAY /= 255;
 
     cv::Mat p = inputGRAY.clone();
@@ -174,15 +190,18 @@ void processUsingCuda(std::string input_file, std::string output_file) {
 
     float eps = 0.2 * 0.2;
 
-    guidedFilterCuda((float*) inputGRAY.ptr<float>(),
-            (float*) p.ptr<float>(),
-            (float*) output.ptr<float>(),
+    //std::cout << inputGRAY << std::endl;
+    guidedFilterCuda(inputGRAY.ptr<float>(),
+            p.ptr<float>(),
+            output.ptr<float>(),
             inputGRAY.cols, inputGRAY.rows,
             eps);
 
+   // std::cout << output << std::endl;
     output *= 255;
+
     //output.convertTo(output, CV_32F);
-    //cvtColor(output, output, CV_GRAY2BGR, 3);
+    cvtColor(output, output, CV_GRAY2BGR, 3);
 
     imwrite(output_file, output);
 }
