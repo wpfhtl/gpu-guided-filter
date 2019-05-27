@@ -11,4 +11,4 @@ $(BIN):
 
 clean:
 	$(RM) $(BIN)
-	$(RM) *.o
+	$(RM) *.o out.png
