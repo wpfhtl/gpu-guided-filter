@@ -5,61 +5,61 @@
 #include "box_filter.h"
 #include "math_kernels.h"
 
-__device__ void compute_cov_var(float *mean_Ip, float *mean_II, float *mean_I,
-        float *mean_p, float *var_I, float *cov_Ip,
+__device__ void compute_cov_var(float4 *mean_Ip, float4 *mean_II, float4 *mean_I,
+        float4 *mean_p, float4 *var_I, float4 *cov_Ip,
         int width, int height)
 {
     int x = blockIdx.x * TILE_W + threadIdx.x - RADIUS;
     int y = blockIdx.y * TILE_H + threadIdx.y - RADIUS;
     if (x >= 0 && y >= 0 && x < width && y < height) {
         int idx = y * width + x; 
-        float m_I = mean_I[idx];
+        float4 m_I = mean_I[idx];
         var_I[idx] = mean_II[idx] - m_I * m_I;
         cov_Ip[idx] = mean_Ip[idx] - m_I * mean_p[idx];
     }
 }
 
-__device__ void compute_ab(float *var_I, float *cov_Ip, float *mean_I,
-        float *mean_p, float *a, float *b, float eps,
+__device__ void compute_ab(float4 *var_I, float4 *cov_Ip, float4 *mean_I,
+        float4 *mean_p, float4 *a, float4 *b, float eps,
         int width, int height)
 {
     int x = blockIdx.x * TILE_W + threadIdx.x - RADIUS;
     int y = blockIdx.y * TILE_H + threadIdx.y - RADIUS;
     if (x >= 0 && y >= 0 && x < width && y < height) {
         int idx = y * width + x; 
-        float a_ = cov_Ip[idx] / (var_I[idx] + eps);
+        float4 a_ = cov_Ip[idx] / (var_I[idx] + eps);
         a[idx] = a_;
         b[idx] = mean_p[idx] - a_ * mean_I[idx];
     }
 }
 
-__device__ void compute_q(float *in, float *mean_a, float *mean_b, float *q,
+__device__ void compute_q(float4 *in, float4 *mean_a, float4 *mean_b, float4 *q,
         int width, int height)
 {
     int x = blockIdx.x * TILE_W + threadIdx.x - RADIUS;
     int y = blockIdx.y * TILE_H + threadIdx.y - RADIUS;
     if (x >= 0 && y >= 0 && x < width && y < height) {
         int idx = y * width + x; 
-        float im_ = in[idx];
+        float4 im_ = in[idx];
         q[idx] = mean_a[idx] * im_ + mean_b[idx];
     }
 }
 
-__global__ void guidedFilterCudaKernel(float* d_input,
-        float *d_p,
-        float *d_q,
-        float *mean_I,
-        float *mean_p,
-        float *mean_Ip,
-        float *mean_II,
-        float *var_I,
-        float *cov_Ip,
-        float *a, 
-        float *b,
-        float *mean_a,
-        float *mean_b,
-        float *tmp,
-        float *tmp2,
+__global__ void guidedFilterCudaKernel(float4* d_input,
+        float4 *d_p,
+        float4 *d_q,
+        float4 *mean_I,
+        float4 *mean_p,
+        float4 *mean_Ip,
+        float4 *mean_II,
+        float4 *var_I,
+        float4 *cov_Ip,
+        float4 *a, 
+        float4 *b,
+        float4 *mean_a,
+        float4 *mean_b,
+        float4 *tmp,
+        float4 *tmp2,
         int width, int height,
         float eps)
 {
@@ -103,32 +103,32 @@ inline void __checkCudaErrors(cudaError err, const char *file, const int line)
     }
 }
 
-void guidedFilterCuda(float *h_input,
-        float *h_p,
-        float *h_output,
+void guidedFilterCuda(float4 *h_input,
+        float4 *h_p,
+        float4 *h_output,
         int width, int height,
         float eps)
 {
        
-    const int n = width * height * sizeof(float);
+    const int n = width * height * sizeof(float4);
 
-    float *d_input, *d_p, *d_output, *mean_I, *mean_p,* mean_Ip,
+    float4 *d_input, *d_p, *d_output, *mean_I, *mean_p,* mean_Ip,
           *mean_II, *var_I, *cov_Ip, *a, *b, *mean_a, *mean_b, *tmp, *tmp2;
-    checkCudaErrors(cudaMalloc<float>(&d_input, n));
-    checkCudaErrors(cudaMalloc<float>(&d_p, n));
-    checkCudaErrors(cudaMalloc<float>(&d_output, n));
-    checkCudaErrors(cudaMalloc<float>(&mean_I, n));
-    checkCudaErrors(cudaMalloc<float>(&mean_p, n));
-    checkCudaErrors(cudaMalloc<float>(&mean_Ip, n));
-    checkCudaErrors(cudaMalloc<float>(&mean_II, n));
-    checkCudaErrors(cudaMalloc<float>(&var_I, n));
-    checkCudaErrors(cudaMalloc<float>(&cov_Ip, n));
-    checkCudaErrors(cudaMalloc<float>(&a, n));
-    checkCudaErrors(cudaMalloc<float>(&b, n));
-    checkCudaErrors(cudaMalloc<float>(&mean_a, n));
-    checkCudaErrors(cudaMalloc<float>(&mean_b, n));
-    checkCudaErrors(cudaMalloc<float>(&tmp, n));
-    checkCudaErrors(cudaMalloc<float>(&tmp2, n));
+    checkCudaErrors(cudaMalloc<float4>(&d_input, n));
+    checkCudaErrors(cudaMalloc<float4>(&d_p, n));
+    checkCudaErrors(cudaMalloc<float4>(&d_output, n));
+    checkCudaErrors(cudaMalloc<float4>(&mean_I, n));
+    checkCudaErrors(cudaMalloc<float4>(&mean_p, n));
+    checkCudaErrors(cudaMalloc<float4>(&mean_Ip, n));
+    checkCudaErrors(cudaMalloc<float4>(&mean_II, n));
+    checkCudaErrors(cudaMalloc<float4>(&var_I, n));
+    checkCudaErrors(cudaMalloc<float4>(&cov_Ip, n));
+    checkCudaErrors(cudaMalloc<float4>(&a, n));
+    checkCudaErrors(cudaMalloc<float4>(&b, n));
+    checkCudaErrors(cudaMalloc<float4>(&mean_a, n));
+    checkCudaErrors(cudaMalloc<float4>(&mean_b, n));
+    checkCudaErrors(cudaMalloc<float4>(&tmp, n));
+    checkCudaErrors(cudaMalloc<float4>(&tmp2, n));
 
     checkCudaErrors(cudaMemcpy(d_input, h_input, n, cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(d_p, h_p, n, cudaMemcpyHostToDevice));
@@ -179,29 +179,29 @@ void processUsingCuda(std::string input_file, std::string output_file) {
         return;
     }
 
-    cv::Mat inputGRAY;
-    cvtColor(input, inputGRAY, CV_BGR2GRAY, 1);
-    inputGRAY.convertTo(inputGRAY, CV_32F);
-    inputGRAY /= 255;
+    cv::Mat inputRGBA;
+    cvtColor(input, inputRGBA, CV_BGR2RGBA, 4);
+    inputRGBA.convertTo(inputRGBA, CV_32FC4);
+    inputRGBA /= 255;
 
-    cv::Mat p = inputGRAY.clone();
+    cv::Mat p = inputRGBA.clone();
 
-    cv::Mat output (input.size(), inputGRAY.type());
+    cv::Mat output (input.size(), inputRGBA.type());
 
     float eps = 0.2 * 0.2;
 
     //std::cout << inputGRAY << std::endl;
-    guidedFilterCuda(inputGRAY.ptr<float>(),
-            p.ptr<float>(),
-            output.ptr<float>(),
-            inputGRAY.cols, inputGRAY.rows,
+    guidedFilterCuda((float4*)inputRGBA.ptr<float4>(),
+            (float4*)p.ptr<float4>(),
+            (float4*)output.ptr<float4>(),
+            inputRGBA.cols, inputRGBA.rows,
             eps);
 
    // std::cout << output << std::endl;
     output *= 255;
 
     //output.convertTo(output, CV_32F);
-    cvtColor(output, output, CV_GRAY2BGR, 3);
+    cvtColor(output, output, CV_RGBA2BGR, 3);
 
     imwrite(output_file, output);
 }
