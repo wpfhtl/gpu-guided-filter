@@ -36,7 +36,7 @@ __device__ void mult(float4 *a, float4 *b, float4 *tmp, int width, int height)
     int x = blockIdx.x * TILE_W + threadIdx.x - RADIUS;
     int y = blockIdx.y * TILE_H + threadIdx.y - RADIUS;
 
-    if (x < width && y < height) {
+    if (x >= 0 && y >= 0 && x < width && y < height) {
         int idx = y * width + x; 
         tmp[idx] = a[idx] * b[idx];
     }

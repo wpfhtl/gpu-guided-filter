@@ -64,13 +64,17 @@ __global__ void guidedFilterCudaKernel(float4* d_input,
         float eps)
 {
     mult(d_input, d_p, tmp, width, height);
+    __syncthreads();
     mult(d_input, d_input, tmp2, width, height);
 
     __syncthreads();
     
     box_filter(d_input, mean_I, width, height);
+    __syncthreads();
     box_filter(d_p, mean_p, width, height);
+    __syncthreads();
     box_filter(tmp, mean_Ip, width, height);
+    __syncthreads();
     box_filter(tmp2, mean_II, width, height);
     
     __syncthreads();
@@ -84,11 +88,13 @@ __global__ void guidedFilterCudaKernel(float4* d_input,
     __syncthreads();
 
     box_filter(a, mean_a, width, height);
+    __syncthreads();
     box_filter(b, mean_b, width, height);
 
     __syncthreads();
 
     compute_q(d_p, mean_a, mean_b, d_q, width, height);
+//    box_filter(d_input, d_q, width, height);
 }
 
 #define checkCudaErrors(err)           __checkCudaErrors (err, __FILE__, __LINE__)
