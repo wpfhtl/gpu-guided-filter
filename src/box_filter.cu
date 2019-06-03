@@ -5,29 +5,22 @@
 
 __device__ void box_filter(float4 *in, float4 *out, int width, int height)
 {
-    int x = blockIdx.x * TILE_W + threadIdx.x - RADIUS;
-    int y = blockIdx.y * TILE_H + threadIdx.y - RADIUS;
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+
     const int idx = y * width + x;
 
-    __shared__ float4 shMem[BLOCK_W][BLOCK_H];
-    if(x<0 || y<0 || x>=width || y>=height) {
-        shMem[threadIdx.x][threadIdx.y] = make_float4(0, 0, 0, 0);
-        return;
-    }
-    shMem[threadIdx.x][threadIdx.y] = in[idx];
-   // printf("p_value: %f, im_value: %f, idx: %d\n", shMem[bindex], in[idx], idx);
+    float4 sum = make_float4(0, 0, 0, 0);
+    int count = 0;
 
-    __syncthreads();
-
-    if ((threadIdx.x >= RADIUS) && (threadIdx.x < (BLOCK_W - RADIUS)) &&
-        (threadIdx.y >= RADIUS) && (threadIdx.y < (BLOCK_H - RADIUS))) {
-        float4 sum = make_float4(0, 0, 0, 0);
-        for(int dy = -RADIUS; dy <= RADIUS; dy++) {
-            for(int dx = -RADIUS; dx <= RADIUS; dx++) {
-                float4 i = shMem[threadIdx.x + dx][threadIdx.y + dy];
-                sum = sum + i;
+    for(int j = -RADIUS; j <= RADIUS; j++) {
+        for(int i = -RADIUS; i <= RADIUS; i++) {
+            if ((x + i) < width && (x + i) >= 0 && (y + j) < height && (y + j) >= 0) { 
+                float4 tmp = in[((y + j) * width) + (x + i)];
+                sum = sum + tmp;
+                ++count;
             }
         }
-        out[idx] = sum / SIZE;
     }
+    out[idx] = sum / (float)count ;
 }

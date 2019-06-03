@@ -31,10 +31,15 @@ __device__ float4 operator+(float4 a, float b)
 	return make_float4(a.x + b, a.y + b, a.z + b, a.w + b);
 }
 
+__device__ float4 fmaxf(float4 a, float b)
+{
+    return make_float4(fmaxf(a.x,b), fmaxf(a.y,b), fmaxf(a.z,b), fmaxf(a.w,b));
+}
+
 __device__ void mult(float4 *a, float4 *b, float4 *tmp, int width, int height)
 {
-    int x = blockIdx.x * TILE_W + threadIdx.x - RADIUS;
-    int y = blockIdx.y * TILE_H + threadIdx.y - RADIUS;
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (x >= 0 && y >= 0 && x < width && y < height) {
         int idx = y * width + x; 
