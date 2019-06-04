@@ -3,24 +3,30 @@
 
 #include<stdio.h>
 
-__device__ void box_filter(float4 *in, float4 *out, int width, int height)
+__device__ void box_filter(float *in, float *out, int width, int height)
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
 
     const int idx = y * width + x;
 
-    float4 sum = make_float4(0, 0, 0, 0);
+    float sum = 0;//make_float4(0, 0, 0, 0);
     int count = 0;
 
-    for(int j = -RADIUS; j <= RADIUS; j++) {
-        for(int i = -RADIUS; i <= RADIUS; i++) {
+    for(int j = -4; j <= 4; j++) {
+        for(int i = -4; i <= 4; i++) {
             if ((x + i) < width && (x + i) >= 0 && (y + j) < height && (y + j) >= 0) { 
-                float4 tmp = in[((y + j) * width) + (x + i)];
+                float tmp = in[((y + j) * width) + (x + i)];
+                if (tmp < 0)
+                    printf("tmp: %f\n", tmp);
                 sum = sum + tmp;
                 ++count;
             }
         }
     }
-    out[idx] = sum / (float)count ;
+    /*
+    if (count != 81)
+        printf("sum: %f, count %i\n", sum, count);
+        */
+    out[idx] = sum / count ;
 }
