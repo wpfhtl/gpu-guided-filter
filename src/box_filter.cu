@@ -5,22 +5,28 @@
 
 __device__ void box_filter(float4 *in, float4 *out, int width, int height)
 {
-    int x = blockIdx.x * blockDim.x + threadIdx.x;
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
-
+    __shared__ float4 smem[BLOCK_W*BLOCK_H];
+    int x = blockIdx.x * TILE_W + threadIdx.x - RADIUS;
+    int y = blockIdx.y * TILE_H + threadIdx.y - RADIUS;
     const int idx = y * width + x;
 
-    float4 sum = make_float4(0, 0, 0, 0);
-    int count = 0;
 
-    for(int j = -4; j <= 4; j++) {
-        for(int i = -4; i <= 4; i++) {
-            if ((x + i) < width && (x + i) >= 0 && (y + j) < height && (y + j) >= 0) { 
-                float4 tmp = in[((y + j) * width) + (x + i)];
-                sum = sum + tmp;
-                ++count;
+    unsigned int bindex = threadIdx.y * blockDim.y + threadIdx.x;
+
+    smem[bindex] = in[idx];
+    __syncthreads();
+
+       float4 sum = make_float4(0, 0, 0, 0);
+        for(int dy = -RADIUS; dy <= RADIUS; dy++) {
+            for(int dx = -RADIUS; dx <= RADIUS; dx++) {
+                if ((threadIdx.x >= RADIUS) && (threadIdx.x < (BLOCK_W - RADIUS)) &&
+                        (threadIdx.y >= RADIUS) && (threadIdx.y < (BLOCK_H - RADIUS))) {
+
+                float4 i = smem[bindex + (dy * blockDim.x) + dx];
+                sum = sum + i;
+                }
             }
         }
+        out[idx] = sum / SIZE;
     }
-    out[idx] = sum / count ;
 }

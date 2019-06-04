@@ -8,20 +8,20 @@
 __device__ void compute_cov_var(float4 *mean_Ip, float4 *mean_II, float4 *mean_I,
         float4 *mean_p, float4 *var_I, float4 *cov_Ip, int width, int height)
 {
-    int x = blockIdx.x * blockDim.x + threadIdx.x;
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
+    int x = blockIdx.x * TILE_W + threadIdx.x - RADIUS;
+    int y = blockIdx.y * TILE_H + threadIdx.y - RADIUS;
 
     int idx = y * width + x; 
     float4 m_I = mean_I[idx];
-    var_I[idx] = mean_II[idx] - m_I * m_I;
-    cov_Ip[idx] = mean_Ip[idx] - m_I * mean_p[idx];
+    var_I[idx] = fmaxf(mean_II[idx] - m_I * m_I, 0.);
+    cov_Ip[idx] = fmaxf(mean_Ip[idx] - m_I * mean_p[idx], 0.);
 }
 
 __device__ void compute_ab(float4 *var_I, float4 *cov_Ip, float4 *mean_I,
         float4 *mean_p, float4 *a, float4 *b, float eps, int width, int height)
 {
-    int x = blockIdx.x * blockDim.x + threadIdx.x;
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
+    int x = blockIdx.x * TILE_W + threadIdx.x - RADIUS;
+    int y = blockIdx.y * TILE_H + threadIdx.y - RADIUS;
 
     int idx = y * width + x; 
     float4 a_ = cov_Ip[idx] / (var_I[idx] + eps);
@@ -32,8 +32,8 @@ __device__ void compute_ab(float4 *var_I, float4 *cov_Ip, float4 *mean_I,
 __device__ void compute_q(float4 *in, float4 *mean_a, float4 *mean_b, float4 *q,
         int width, int height)
 {
-    int x = blockIdx.x * blockDim.x + threadIdx.x;
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
+    int x = blockIdx.x * TILE_W + threadIdx.x - RADIUS;
+    int y = blockIdx.y * TILE_H + threadIdx.y - RADIUS;
 
     int idx = y * width + x; 
     float4 im_ = in[idx];
@@ -42,6 +42,7 @@ __device__ void compute_q(float4 *in, float4 *mean_a, float4 *mean_b, float4 *q,
 
 __global__ void mean_kernel(float4* d_input,
         float4 *d_p,
+        float4 *d_q,
         float4 *mean_I,
         float4 *mean_p,
         float4 *mean_Ip,
@@ -51,10 +52,11 @@ __global__ void mean_kernel(float4* d_input,
         int width, int height,
         float eps)
 {
-    int x = blockIdx.x * blockDim.x + threadIdx.x;
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
+    int x = blockIdx.x * TILE_W + threadIdx.x - RADIUS;
+    int y = blockIdx.y * TILE_H + threadIdx.y - RADIUS;
+    int idx = y * width + x;
 
-    if (x < width && y < height) {
+    if (x >= 0 && y >= 0 && x < width && y < height) {
         box_filter(d_input, mean_I, width, height);
         box_filter(d_p, mean_p, width, height);
         box_filter(d_tmp, mean_Ip, width, height);
@@ -76,10 +78,10 @@ __global__ void cov_var_ab_kernel(float4* d_input,
         int width, int height,
         float eps)
 {
-    int x = blockIdx.x * blockDim.x + threadIdx.x;
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
+    int x = blockIdx.x * TILE_W + threadIdx.x - RADIUS;
+    int y = blockIdx.y * TILE_H + threadIdx.y - RADIUS;
 
-    if (x < width && y < height) {
+    if (x >= 0 && y >= 0 && x < width && y < height) {
         compute_cov_var(mean_Ip, mean_II, mean_I, mean_p, var_I, cov_Ip, width, height);
         compute_ab(var_I, cov_Ip, mean_I, mean_p, a, b, eps, width, height);
     }
@@ -95,10 +97,10 @@ __global__ void output_kernel(float4* d_input,
         int width, int height,
         float eps)
 {
-    int x = blockIdx.x * blockDim.x + threadIdx.x;
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
+    int x = blockIdx.x * TILE_W + threadIdx.x - RADIUS;
+    int y = blockIdx.y * TILE_H + threadIdx.y - RADIUS;
 
-    if (x < width && y < height) {
+    if (x >= 0 && y >= 0 && x < width && y < height) {
         box_filter(a, mean_a, width, height);
         box_filter(b, mean_b, width, height);
         compute_q(d_p, mean_a, mean_b, d_q, width, height);
@@ -157,7 +159,7 @@ void guided_filter_cuda(float4 *h_input,
     int GRID_W = ceil(width / (float)TILE_W);
     int GRID_H = ceil(height / (float)TILE_H);
 
-    const dim3 block(TILE_W, TILE_H);
+    const dim3 block(BLOCK_W, BLOCK_H);
     const dim3 grid(GRID_W, GRID_H);
 
     printf("grid_w: %d\n", grid.x);
@@ -165,7 +167,7 @@ void guided_filter_cuda(float4 *h_input,
     printf("block_w: %d\n", block.x);
     printf("block_h: %d\n", block.y);
 
-    mean_kernel<<<grid, block>>>(d_input, d_p, d_mean_I, d_mean_p, d_mean_Ip,
+    mean_kernel<<<grid, block>>>(d_input, d_p, d_output, d_mean_I, d_mean_p, d_mean_Ip,
             d_mean_II, d_tmp, d_tmp2, width, height, eps);
 
     cudaDeviceSynchronize();
