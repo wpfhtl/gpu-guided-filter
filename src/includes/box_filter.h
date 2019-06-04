@@ -2,7 +2,7 @@
 
 #define TILE_W      16
 #define TILE_H      16
-#define RADIUS      4
+#define RADIUS      2
 #define DIAM        (RADIUS*2+1)
 #define SIZE        (DIAM*DIAM)
 #define BLOCK_W     (TILE_W+(2*RADIUS))

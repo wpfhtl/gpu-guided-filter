@@ -16,17 +16,18 @@ __device__ void box_filter(float4 *in, float4 *out, int width, int height)
     smem[bindex] = in[idx];
     __syncthreads();
 
-       float4 sum = make_float4(0, 0, 0, 0);
-        for(int dy = -RADIUS; dy <= RADIUS; dy++) {
+    float4 sum = make_float4(0, 0, 0, 0);
+    int count = 0;
+ 
+    if ((threadIdx.x >= RADIUS) && (threadIdx.x < (BLOCK_W - RADIUS)) &&
+            (threadIdx.y >= RADIUS) && (threadIdx.y < (BLOCK_H - RADIUS))) {
+       for(int dy = -RADIUS; dy <= RADIUS; dy++) {
             for(int dx = -RADIUS; dx <= RADIUS; dx++) {
-                if ((threadIdx.x >= RADIUS) && (threadIdx.x < (BLOCK_W - RADIUS)) &&
-                        (threadIdx.y >= RADIUS) && (threadIdx.y < (BLOCK_H - RADIUS))) {
-
                 float4 i = smem[bindex + (dy * blockDim.x) + dx];
                 sum = sum + i;
-                }
+                ++count;
             }
         }
-        out[idx] = sum / SIZE;
+        out[idx] = sum / count;
     }
 }

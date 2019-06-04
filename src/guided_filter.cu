@@ -54,12 +54,14 @@ __global__ void mean_kernel(float4* d_input,
 {
     int x = blockIdx.x * TILE_W + threadIdx.x - RADIUS;
     int y = blockIdx.y * TILE_H + threadIdx.y - RADIUS;
-    int idx = y * width + x;
 
     if (x >= 0 && y >= 0 && x < width && y < height) {
         box_filter(d_input, mean_I, width, height);
+        __syncthreads();
         box_filter(d_p, mean_p, width, height);
+        __syncthreads();
         box_filter(d_tmp, mean_Ip, width, height);
+        __syncthreads();
         box_filter(d_tmp2, mean_II, width, height);
     }
 }
@@ -83,6 +85,7 @@ __global__ void cov_var_ab_kernel(float4* d_input,
 
     if (x >= 0 && y >= 0 && x < width && y < height) {
         compute_cov_var(mean_Ip, mean_II, mean_I, mean_p, var_I, cov_Ip, width, height);
+        __syncthreads();
         compute_ab(var_I, cov_Ip, mean_I, mean_p, a, b, eps, width, height);
     }
 }
@@ -102,7 +105,9 @@ __global__ void output_kernel(float4* d_input,
 
     if (x >= 0 && y >= 0 && x < width && y < height) {
         box_filter(a, mean_a, width, height);
+        __syncthreads();
         box_filter(b, mean_b, width, height);
+        __syncthreads();
         compute_q(d_p, mean_a, mean_b, d_q, width, height);
     }
 }
@@ -156,8 +161,8 @@ void guided_filter_cuda(float4 *h_input,
     checkCudaErrors(cudaMemcpy(d_tmp, h_tmp, n, cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(d_tmp2, h_tmp2, n, cudaMemcpyHostToDevice));
 
-    int GRID_W = ceil(width / (float)TILE_W);
-    int GRID_H = ceil(height / (float)TILE_H);
+    int GRID_W = width / TILE_W + 1;
+    int GRID_H = height / TILE_H + 1;
 
     const dim3 block(BLOCK_W, BLOCK_H);
     const dim3 grid(GRID_W, GRID_H);
