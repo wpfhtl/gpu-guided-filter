@@ -8,4 +8,4 @@
 #define BLOCK_W     (TILE_W+(2*RADIUS))
 #define BLOCK_H     (TILE_H+(2*RADIUS))
 
-__device__ void box_filter(float *in, float *out, int width, int height);
+__device__ void box_filter(float4 *in, float4 *out, int width, int height);
