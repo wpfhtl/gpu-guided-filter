@@ -47,34 +47,12 @@ __global__ void mean_kernel(float4* d_input,
         float4 *mean_p,
         float4 *mean_Ip,
         float4 *mean_II,
-        float4 *d_tmp,
-        float4 *d_tmp2,
-        int width, int height,
-        float eps)
-{
-    int x = blockIdx.x * TILE_W + threadIdx.x - RADIUS;
-    int y = blockIdx.y * TILE_H + threadIdx.y - RADIUS;
-
-    if (x >= 0 && y >= 0 && x < width && y < height) {
-        box_filter(d_input, mean_I, width, height);
-        __syncthreads();
-        box_filter(d_p, mean_p, width, height);
-        __syncthreads();
-        box_filter(d_tmp, mean_Ip, width, height);
-        __syncthreads();
-        box_filter(d_tmp2, mean_II, width, height);
-    }
-}
-
-__global__ void cov_var_ab_kernel(float4* d_input,
-        float4 *mean_I,
-        float4 *mean_p,
-        float4 *mean_Ip,
-        float4 *mean_II,
         float4 *var_I,
         float4 *cov_Ip,
-        float4 *a, 
+        float4 *a,
         float4 *b,
+        float4 *d_tmp,
+        float4 *d_tmp2,
         float4 *mean_a,
         float4 *mean_b,
         int width, int height,
@@ -82,18 +60,21 @@ __global__ void cov_var_ab_kernel(float4* d_input,
 {
     int x = blockIdx.x * TILE_W + threadIdx.x - RADIUS;
     int y = blockIdx.y * TILE_H + threadIdx.y - RADIUS;
-
+    box_filter(d_input, mean_I, width, height);
+    box_filter(d_p, mean_p, width, height);
+    __syncthreads();
+    box_filter(d_tmp, mean_Ip, width, height);
+    box_filter(d_tmp2, mean_II, width, height);
     if (x >= 0 && y >= 0 && x < width && y < height) {
-        compute_cov_var(mean_Ip, mean_II, mean_I, mean_p, var_I, cov_Ip, width, height);
-        __syncthreads();
-        compute_ab(var_I, cov_Ip, mean_I, mean_p, a, b, eps, width, height);
+    compute_cov_var(mean_Ip, mean_II, mean_I, mean_p, var_I, cov_Ip, width, height);
+    compute_ab(var_I, cov_Ip, mean_I, mean_p, a, b, eps, width, height);
     }
 }
 
 __global__ void output_kernel(float4* d_input,
         float4 *d_p,
         float4 *d_q,
-        float4 *a, 
+        float4 *a,
         float4 *b,
         float4 *mean_a,
         float4 *mean_b,
@@ -103,12 +84,13 @@ __global__ void output_kernel(float4* d_input,
     int x = blockIdx.x * TILE_W + threadIdx.x - RADIUS;
     int y = blockIdx.y * TILE_H + threadIdx.y - RADIUS;
 
+     box_filter(a, mean_a, width, height);
+    __syncthreads();
+    box_filter(b, mean_b, width, height);
+    __syncthreads();
+
     if (x >= 0 && y >= 0 && x < width && y < height) {
-        box_filter(a, mean_a, width, height);
-        __syncthreads();
-        box_filter(b, mean_b, width, height);
-        __syncthreads();
-        compute_q(d_p, mean_a, mean_b, d_q, width, height);
+    compute_q(d_p, mean_a, mean_b, d_q, width, height);
     }
 }
 
@@ -136,8 +118,8 @@ void guided_filter_cuda(float4 *h_input,
     const int n = width * height * sizeof(float4);
 
     float4 *d_input, *d_p, *d_output, *d_mean_I, *d_mean_p, *d_mean_Ip,
-          *d_mean_II, *d_var_I, *d_cov_Ip, *d_a, *d_b, *d_mean_a,
-          *d_mean_b, *d_tmp, *d_tmp2;
+           *d_mean_II, *d_var_I, *d_cov_Ip, *d_a, *d_b, *d_mean_a,
+           *d_mean_b, *d_tmp, *d_tmp2;
 
     checkCudaErrors(cudaMalloc<float4>(&d_input, n));
     checkCudaErrors(cudaMalloc<float4>(&d_p, n));
@@ -161,8 +143,8 @@ void guided_filter_cuda(float4 *h_input,
     checkCudaErrors(cudaMemcpy(d_tmp, h_tmp, n, cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(d_tmp2, h_tmp2, n, cudaMemcpyHostToDevice));
 
-    int GRID_W = width / TILE_W + 1;
-    int GRID_H = height / TILE_H + 1;
+    int GRID_W = ceil(width /(float)TILE_W);
+    int GRID_H = ceil(height / (float)TILE_H);
 
     const dim3 block(BLOCK_W, BLOCK_H);
     const dim3 grid(GRID_W, GRID_H);
@@ -173,20 +155,12 @@ void guided_filter_cuda(float4 *h_input,
     printf("block_h: %d\n", block.y);
 
     mean_kernel<<<grid, block>>>(d_input, d_p, d_output, d_mean_I, d_mean_p, d_mean_Ip,
-            d_mean_II, d_tmp, d_tmp2, width, height, eps);
+            d_mean_II, d_var_I, d_cov_Ip, d_a, d_b, d_tmp, d_tmp2, d_mean_a,
+            d_mean_b, width, height, eps);
 
     cudaDeviceSynchronize();
-
-    cov_var_ab_kernel<<<grid, block>>>(d_input, d_mean_I, d_mean_p, d_mean_Ip,
-        d_mean_II, d_var_I, d_cov_Ip, d_a, d_b, d_mean_a, d_mean_b, 
-        width, height, eps);
-
-    cudaDeviceSynchronize();
-
     output_kernel<<<grid, block>>>(d_input, d_p, d_output, d_a, d_b,
             d_mean_a, d_mean_b, width, height, eps);
-
-    cudaDeviceSynchronize();
 
     auto error = cudaGetLastError();
     if (error != cudaSuccess)

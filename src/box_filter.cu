@@ -8,6 +8,10 @@ __device__ void box_filter(float4 *in, float4 *out, int width, int height)
     __shared__ float4 smem[BLOCK_W*BLOCK_H];
     int x = blockIdx.x * TILE_W + threadIdx.x - RADIUS;
     int y = blockIdx.y * TILE_H + threadIdx.y - RADIUS;
+    x = max(0, x);
+    x = min(x, width-1);
+    y = max(y, 0);
+    y = min(y, height-1);
     const int idx = y * width + x;
 
 
