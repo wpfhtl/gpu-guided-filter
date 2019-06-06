@@ -144,6 +144,6 @@ int main(int argc, char *argv[]) {
         std::cout << "Choose image" << std::endl;
         return 1;
     }
-    processUsingCuda("../data/cat.png", "out.png");
+    processUsingCuda(argv[argc - 1], "out.png");
     return 0;
 }

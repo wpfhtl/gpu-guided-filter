@@ -1,6 +1,6 @@
 CC=g++
 NVCC=nvcc
-CUDAFLAGS= -arch=sm_61 -cudart=shared -rdc=true -G -g
+CUDAFLAGS= -arch=sm_61 -cudart=shared -rdc=true -G -O3
 LDLIBS=`pkg-config opencv --cflags --libs`
 BIN=guided_filter
 SRC=guided_filter.cu box_filter.cu math_kernels.cu
