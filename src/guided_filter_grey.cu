@@ -186,26 +186,22 @@ void guided_filter_cuda(float4 *h_input,
 }
 
 void compute(std::string input_file, std::string g_file, std::string output_file) {
-    cv::Mat input = cv::imread(input_file);
-    if(input.empty()) {
+    cv::Mat p = cv::imread(input_file);
+    if(p.empty()) {
         std::cout<<"Input image Not Found: "<< input_file << std::endl;
         return;
     }
-    cv::Mat g_original = cv::imread(g_file);
-    if(g_original.empty()) {
+    cv::Mat g = cv::imread(g_file);
+    if(g.empty()) {
         std::cout<<"guidance image Not Found: "<< g_file << std::endl;
         return;
     }
 
-    cv::Mat g;
-    cvtColor(g_original, g, CV_BGR2RGBA, 4);
-    g.convertTo(g, CV_32FC4);
+    g.convertTo(g, CV_32FC1);
     g /= 255.f;
 
     // cv::Mat p = inputRGBA.clone();
-    cv::Mat p;
-    cvtColor(input, p, CV_BGR2RGBA, 4);
-    p.convertTo(p, CV_32FC4);
+    p.convertTo(p, CV_32FC1);
     p /= 255.f;
 
     cv::Mat output (input.size(), g.type());
@@ -214,20 +210,18 @@ void compute(std::string input_file, std::string g_file, std::string output_file
     cv::Mat tmp = g.mul(p);
     cv::Mat tmp2 = g.mul(g);
 
-    guided_filter_cuda(g.ptr<float4>(),
-            p.ptr<float4>(),
-            output.ptr<float4>(),
-            tmp.ptr<float4>(),
-            tmp2.ptr<float4>(),
+    guided_filter_cuda(g.ptr<float>(),
+            p.ptr<float>(),
+            output.ptr<float>(),
+            tmp.ptr<float>(),
+            tmp2.ptr<float>(),
             g.cols, g.rows,
             eps);
 
     output *= 255;
 
-    cvtColor(output, output, CV_RGBA2BGR, 3);
-
     imwrite(output_file, output);
-    printf("Saved image: %s\n", output_file.c_str());
+    printf("Saved image: %s\n", output_file);
 }
 
 int main(int argc, char *argv[]) {
