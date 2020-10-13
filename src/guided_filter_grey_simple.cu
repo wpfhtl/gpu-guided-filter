@@ -2,8 +2,7 @@
 #include <opencv2/opencv.hpp>
 #include <iostream>
 
-#include "box_filter.h"
-#include "math_kernels.h"
+#include "box_filter_grey.h"
 
 __device__ void compute_cov_var(float *mean_Ip, float *mean_II, float *mean_I,
         float *mean_p, float *var_I, float *cov_Ip, int width, int height)
@@ -223,7 +222,7 @@ void compute(std::string input_file, std::string g_file, std::string output_file
     p.convertTo(p, CV_32FC1);
     p /= 255.f;
 
-    cv::Mat output (input.size(), g.type());
+    cv::Mat output (p.size(), g.type());
 
     float eps = 0.2 * 0.2;
     cv::Mat tmp = g.mul(p);

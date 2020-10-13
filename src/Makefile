@@ -7,7 +7,9 @@ BIN1=../build/guided_filter_simple
 BIN11=../build/guided_filter_grey
 BIN12=../build/guided_filter_grey_simple
 SRC=guided_filter.cu box_filter.cu math_kernels.cu
-SRC1=guided_filter_simple.cu box_filter_simple.cu math_kernels.cu
+SRC1=guided_filter_simple.cu box_filter_simple.cu math_kernels.cu guided_filter_simple.cpp
+SRC11=guided_filter_grey.cu box_filter_grey.cu
+SRC12=guided_filter_grey_simple.cu box_filter_grey_simple.cu
 SRC2=bilateral/bilateral.cu math_kernels.cu
 
 all: $(BIN) $(BIN1) $(BIN11) $(BIN12) bilat
@@ -19,10 +21,10 @@ $(BIN1):
 	$(NVCC) $(SRC1) $(CUDAFLAGS) $(LDLIBS) -Iincludes -o $(BIN1)
 
 $(BIN11):
-	$(NVCC) $(SRC1) $(CUDAFLAGS) $(LDLIBS) -Iincludes -o $(BIN11)
+	$(NVCC) $(SRC11) $(CUDAFLAGS) $(LDLIBS) -Iincludes -o $(BIN11)
 
 $(BIN12):
-	$(NVCC) $(SRC1) $(CUDAFLAGS) $(LDLIBS) -Iincludes -o $(BIN12)
+	$(NVCC) $(SRC12) $(CUDAFLAGS) $(LDLIBS) -Iincludes -o $(BIN12)
 
 bilat:
 	$(NVCC) $(SRC2) $(CUDAFLAGS) $(LDLIBS) -Iincludes -o bilat
